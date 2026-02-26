@@ -3,6 +3,7 @@
 import { useState, forwardRef } from "react"
 import { Search, Loader2, Zap } from "lucide-react"
 import { ResultsDashboard } from "./results-dashboard"
+import { useToast } from "@/hooks/use-toast"
 
 const LANGUAGES = [
   "English",
@@ -12,36 +13,56 @@ const LANGUAGES = [
   "Telugu",
 ]
 
-const MOCK_RESULTS = {
-  score: 82,
-  semanticScore: 0.76,
-  similarTitles: [
-    { title: "The Daily Herald", similarity: 89 },
-    { title: "Herald Tribune", similarity: 74 },
-    { title: "Daily News Herald", similarity: 68 },
-    { title: "The Morning Herald", similarity: 61 },
-  ],
-  flaggedWords: ["Herald", "Daily"],
-  crossLingual: true,
-  complianceStatus: "needs_review" as const,
-}
-
 export const VerificationPanel = forwardRef<HTMLElement>(function VerificationPanel(_props, ref) {
   const [title, setTitle] = useState("")
   const [language, setLanguage] = useState("English")
   const [isVerifying, setIsVerifying] = useState(false)
-  const [showResults, setShowResults] = useState(false)
+  const [results, setResults] = useState<any>(null)
+  const { toast } = useToast()
 
   const handleVerify = async () => {
     if (!title.trim()) return
     setIsVerifying(true)
-    setShowResults(false)
+    setResults(null)
 
-    // Simulate AI processing
-    await new Promise((r) => setTimeout(r, 3000))
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      const response = await fetch(`${apiUrl}/api/verify-title`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, language }),
+      })
 
-    setIsVerifying(false)
-    setShowResults(true)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to verify title")
+      }
+
+      const data = await response.json()
+
+      // Map backend VerificationResponse to Results expected by ResultsDashboard
+      setResults({
+        score: Math.round(data.verificationProbability),
+        semanticScore: data.semanticScore / 100, // Frontend expects 0 to 1 scaling based on design
+        similarTitles: data.similarTitles.map((t: any) => ({
+          title: t.name,
+          similarity: t.score
+        })),
+        flaggedWords: data.flaggedWords,
+        // The current backend doesn't output crossLingual explicitly, so default it 
+        crossLingual: false,
+        complianceStatus: data.complianceStatus === "Needs Review" ? "needs_review" : data.complianceStatus.toLowerCase()
+      })
+
+    } catch (err: any) {
+      toast({
+        title: "Error Verification Failed",
+        description: err.message,
+        variant: "destructive",
+      })
+    } finally {
+      setIsVerifying(false)
+    }
   }
 
   return (
@@ -140,7 +161,7 @@ export const VerificationPanel = forwardRef<HTMLElement>(function VerificationPa
         </div>
 
         {/* Results */}
-        {showResults && <ResultsDashboard results={MOCK_RESULTS} />}
+        {results && <ResultsDashboard results={results} />}
       </div>
     </section>
   )

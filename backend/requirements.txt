@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+sentence-transformers
+rapidfuzz
+metaphone
+pydantic-settings

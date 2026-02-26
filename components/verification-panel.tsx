@@ -26,7 +26,12 @@ export const VerificationPanel = forwardRef<HTMLElement>(function VerificationPa
     setResults(null)
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      // Robust URL derivation to prevent Vercel caching issues with environment variables
+      let apiUrl = "http://localhost:8000"
+      if (typeof window !== "undefined" && !window.location.hostname.includes("localhost")) {
+        apiUrl = "https://verititle-api.onrender.com"
+      }
+
       const response = await fetch(`${apiUrl}/api/verify-title`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
